@@ -5,6 +5,7 @@ import { Toaster } from 'sonner';
 import { UserLimitsProvider } from '@/hooks/UserLimitsContext';
 import { APP_NAME } from '@/lib/utils';
 import PlausibleProvider from 'next-plausible';
+import { ThemeProvider } from 'next-themes';
 
 const instrumentSans = Instrument_Sans({
   variable: '--font-instrument-sans',
@@ -25,15 +26,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang='en'>
+    <html lang='en' suppressHydrationWarning>
       <head>
         <PlausibleProvider domain='csvtochat.com' />
       </head>
       <body className={`${instrumentSans.variable} antialiased`}>
-        <UserLimitsProvider>
-          {children}
-          <Toaster richColors />
-        </UserLimitsProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <UserLimitsProvider>
+            {children}
+            <Toaster richColors />
+          </UserLimitsProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
