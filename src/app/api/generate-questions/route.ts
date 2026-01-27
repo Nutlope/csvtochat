@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     if (!columns || !Array.isArray(columns) || columns.length === 0) {
       return NextResponse.json(
         { error: 'Invalid input: "columns" array is required.' },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -26,7 +26,9 @@ export async function POST(req: Request) {
     console.log("Prompt:", generateQuestionsPrompt({ csvHeaders: columns }));
 
     const { object: generatedQuestions } = await generateObject({
-      model: togetherAISDKClient("meta-llama/Llama-4-Scout-17B-16E-Instruct"),
+      model: togetherAISDKClient(
+        "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+      ),
       mode: "json",
       output: "array",
       schema: questionSchema,
@@ -37,13 +39,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       { questions: generatedQuestions.slice(0, 3) },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("Error generating questions:", error);
     return NextResponse.json(
       { error: "Internal server error." },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
