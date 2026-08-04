@@ -3,7 +3,14 @@ import { Message as AIMsg, generateText } from "ai";
 import { generateId } from "ai";
 import { redis, togetherAISDKClient } from "./clients"; // Import your redis client
 import { generateTitlePrompt } from "./prompts";
+import {
+  endAndFlushBraintrustSpanAfterResponse,
+  logBraintrustEvent,
+  serializeBraintrustError,
+  startBraintrustSpan,
+} from "./braintrust";
 const CHAT_KEY_PREFIX = "chat:";
+const TITLE_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo";
 
 // Extend the Message type to include duration for Redis persistence
 export type DbMessage = AIMsg & {
@@ -36,11 +43,49 @@ export async function createChat({
   const id = generateId();
 
   // use userQuestion to generate a title for the chat
-  const { text: title } = await generateText({
-    model: togetherAISDKClient("meta-llama/Llama-3.3-70B-Instruct-Turbo"),
-    prompt: generateTitlePrompt({ csvHeaders, userQuestion }),
-    maxTokens: 100,
+  const startedAt = performance.now();
+  const span = startBraintrustSpan({
+    name: "csvtochat.generate-title",
+    type: "llm",
+    event: {
+      metadata: {
+        model: TITLE_MODEL,
+        operation: "chat-title",
+        columnCount: csvHeaders.length,
+        inputCharacters: userQuestion.length,
+      },
+    },
   });
+  let title: string;
+
+  try {
+    const result = await generateText({
+      model: togetherAISDKClient(TITLE_MODEL),
+      prompt: generateTitlePrompt({ csvHeaders, userQuestion }),
+      maxTokens: 100,
+    });
+    title = result.text;
+
+    logBraintrustEvent(span, {
+      output: { titleCharacters: title.length },
+      metadata: { success: true, finishReason: result.finishReason },
+      metrics: {
+        duration_ms: performance.now() - startedAt,
+        prompt_tokens: result.usage.promptTokens,
+        completion_tokens: result.usage.completionTokens,
+        tokens: result.usage.totalTokens,
+      },
+    });
+  } catch (error) {
+    logBraintrustEvent(span, {
+      error: serializeBraintrustError(error),
+      metadata: { success: false },
+      metrics: { duration_ms: performance.now() - startedAt },
+    });
+    throw error;
+  } finally {
+    endAndFlushBraintrustSpanAfterResponse(span);
+  }
 
   const initial: ChatData = {
     messages: [],

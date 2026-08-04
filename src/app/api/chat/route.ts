@@ -11,6 +11,12 @@ import { DbMessage, loadChat, saveNewMessage } from "@/lib/chat-store";
 import { limitMessages } from "@/lib/limits";
 import { generateCodePrompt } from "@/lib/prompts";
 import { CHAT_MODELS } from "@/lib/models";
+import {
+  endAndFlushBraintrustSpanAfterResponse,
+  logBraintrustEvent,
+  serializeBraintrustError,
+  startBraintrustSpan,
+} from "@/lib/braintrust";
 
 export async function POST(req: Request) {
   const { id, message, model } = await req.json();
@@ -73,6 +79,38 @@ export async function POST(req: Request) {
     throw new Error("Invalid model selected.");
   }
 
+  const span = startBraintrustSpan({
+    name: "csvtochat.chat",
+    type: "llm",
+    event: {
+      metadata: {
+        model: selectedModel,
+        route: "/api/chat",
+        messageCount: coreMessagesForStream.length,
+        inputCharacters: typeof message === "string" ? message.length : 0,
+        columnCount: chat?.csvHeaders?.length ?? 0,
+        rowCount: chat?.csvRows?.length ?? 0,
+      },
+    },
+  });
+  let traceEnded = false;
+  const finishTrace = (
+    event: Parameters<typeof logBraintrustEvent>[1],
+  ) => {
+    if (traceEnded) return;
+    traceEnded = true;
+    req.signal.removeEventListener("abort", handleAbort);
+    logBraintrustEvent(span, event);
+    endAndFlushBraintrustSpanAfterResponse(span);
+  };
+  const handleAbort = () => {
+    finishTrace({
+      metadata: { success: false, aborted: true },
+      metrics: { duration_ms: Date.now() - start },
+    });
+  };
+  req.signal.addEventListener("abort", handleAbort, { once: true });
+
   try {
     // Create a new model instance based on selectedModel
     const modelInstance = wrapLanguageModel({
@@ -92,38 +130,58 @@ export async function POST(req: Request) {
       messages: coreMessagesForStream.filter(
         (msg) => msg.role !== "system"
       ) as CoreMessage[],
-      onError: (error) => {
+      onError: ({ error }) => {
+        finishTrace({
+          error: serializeBraintrustError(error),
+          metadata: { success: false, phase: "stream" },
+          metrics: { duration_ms: Date.now() - start },
+        });
         console.error("Error:", error);
       },
-      async onFinish({ response }) {
+      async onFinish({ response, text, finishReason, usage }) {
         // End timing
         const end = Date.now();
         const duration = (end - start) / 1000;
 
-        if (response.messages.length > 1) {
-          console.log("response.messages", response.messages);
-          return;
+        try {
+          if (response.messages.length === 1) {
+            const responseMessages = appendResponseMessages({
+              messages: messagesToSave,
+              responseMessages: response.messages,
+            });
+
+            const responseMessage = responseMessages.at(-1);
+
+            if (responseMessage) {
+              await saveNewMessage({
+                id,
+                message: {
+                  ...responseMessage,
+                  duration,
+                  model: selectedModel,
+                },
+              });
+            }
+          }
+
+          finishTrace({
+            output: { outputCharacters: text.length },
+            metadata: { success: true, finishReason },
+            metrics: {
+              duration_ms: end - start,
+              prompt_tokens: usage.promptTokens,
+              completion_tokens: usage.completionTokens,
+              tokens: usage.totalTokens,
+            },
+          });
+        } catch (error) {
+          finishTrace({
+            error: serializeBraintrustError(error),
+            metadata: { success: false, phase: "persistence" },
+            metrics: { duration_ms: Date.now() - start },
+          });
+          throw error;
         }
-
-        const responseMessages = appendResponseMessages({
-          messages: messagesToSave,
-          responseMessages: response.messages,
-        });
-
-        const responseMessage = responseMessages.at(-1);
-
-        if (!responseMessage) {
-          return;
-        }
-
-        await saveNewMessage({
-          id,
-          message: {
-            ...responseMessage,
-            duration,
-            model: selectedModel,
-          },
-        });
       },
     });
 
@@ -131,6 +189,11 @@ export async function POST(req: Request) {
       sendReasoning: true,
     });
   } catch (err) {
+    finishTrace({
+      error: serializeBraintrustError(err),
+      metadata: { success: false, phase: "request" },
+      metrics: { duration_ms: Date.now() - start },
+    });
     console.error(err);
     return new Response("Error generating response", { status: 500 });
   }
