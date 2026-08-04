@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { generateObject } from "ai";
 import { z } from "zod";
-import { togetherAISDKClient } from "@/lib/clients";
+import { togetherClient } from "@/lib/clients";
 import { generateQuestionsPrompt } from "@/lib/prompts";
 import {
   endAndFlushBraintrustSpanAfterResponse,
@@ -10,8 +9,7 @@ import {
   startBraintrustSpan,
 } from "@/lib/braintrust";
 
-const QUESTION_GENERATION_MODEL =
-  "meta-llama/Llama-3.3-70B-Instruct-Turbo";
+const QUESTION_GENERATION_MODEL = "deepseek-ai/DeepSeek-V4-Flash-0731";
 
 const questionSchema = z.object({
   id: z.string(),
@@ -22,6 +20,27 @@ const questionSchema = z.object({
 const questionsSchema = z.object({
   questions: z.array(questionSchema).length(3),
 });
+const questionsJsonSchema = {
+  type: "object",
+  properties: {
+    questions: {
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          text: { type: "string" },
+        },
+        required: ["id", "text"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["questions"],
+  additionalProperties: false,
+} as const;
 
 export async function POST(req: Request) {
   let span: ReturnType<typeof startBraintrustSpan> = undefined;
@@ -50,31 +69,67 @@ export async function POST(req: Request) {
       },
     });
 
-    const generation = await generateObject({
-      model: togetherAISDKClient(QUESTION_GENERATION_MODEL),
-      mode: "json",
-      output: "object",
-      schema: questionsSchema,
-      temperature: 0,
-      maxTokens: 500,
-      maxRetries: 0,
-      abortSignal: AbortSignal.timeout(8_000),
-      prompt: generateQuestionsPrompt({ csvHeaders: columns }),
-    });
-    const { questions: generatedQuestions } = questionsSchema.parse(
-      generation.object,
+    const generation = await togetherClient.chat.completions.create(
+      {
+        model: QUESTION_GENERATION_MODEL,
+        messages: [
+          {
+            role: "user",
+            content: generateQuestionsPrompt({ csvHeaders: columns }),
+          },
+        ],
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "questions",
+            schema: questionsJsonSchema,
+          },
+        },
+        reasoning: { enabled: false },
+        stream: false,
+        max_tokens: 500,
+        temperature: 0,
+      } as Parameters<typeof togetherClient.chat.completions.create>[0] & {
+        reasoning: { enabled: boolean };
+        response_format: {
+          type: "json_schema";
+          json_schema: {
+            name: string;
+            schema: typeof questionsJsonSchema;
+          };
+        };
+      },
+      { signal: AbortSignal.timeout(8_000) },
     );
-    const { finishReason, usage } = generation;
+    if (!("choices" in generation)) {
+      throw new Error("Question generation unexpectedly returned a stream");
+    }
+    const content = generation.choices[0]?.message?.content;
+    if (typeof content !== "string") {
+      throw new Error("Question generation returned no content");
+    }
+    const { questions: generatedQuestions } = questionsSchema.parse(
+      JSON.parse(content),
+    );
+    const finishReason = generation.choices[0]?.finish_reason;
+    const usage = generation.usage;
+    const metrics: Record<string, number> = {
+      duration_ms: performance.now() - startedAt,
+    };
+    if (usage?.prompt_tokens !== undefined) {
+      metrics.prompt_tokens = usage.prompt_tokens;
+    }
+    if (usage?.completion_tokens !== undefined) {
+      metrics.completion_tokens = usage.completion_tokens;
+    }
+    if (usage?.total_tokens !== undefined) {
+      metrics.tokens = usage.total_tokens;
+    }
 
     logBraintrustEvent(span, {
       output: { questionCount: generatedQuestions.length },
       metadata: { success: true, finishReason },
-      metrics: {
-        duration_ms: performance.now() - startedAt,
-        prompt_tokens: usage.promptTokens,
-        completion_tokens: usage.completionTokens,
-        tokens: usage.totalTokens,
-      },
+      metrics,
     });
 
     return NextResponse.json(

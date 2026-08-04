@@ -89,6 +89,8 @@ export function serializeBraintrustError(error: unknown) {
     category = "timeout";
   } else if (error.name === "AI_APICallError") {
     category = "provider_api_error";
+  } else if (error.name === "SyntaxError" || error.name === "ZodError") {
+    category = "invalid_model_output";
   } else if (
     error.name === "AI_NoObjectGeneratedError" ||
     error.name === "AI_JSONParseError" ||
