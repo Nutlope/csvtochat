@@ -114,9 +114,7 @@ Each question should be:
 - Short enough to fit in a single row
 - Without phrases like "in the dataset", "from the data", or "in the CSV file"
 
-Return ONLY a JSON array of objects, each with "id" (unique string) and "text" (the question string). Do not include any other text, explanations, or the JSON schema.
+Return ONLY a JSON object with a "questions" array. Each array item must have an "id" (unique string) and "text" (the question string). Do not include any other text, explanations, or the JSON schema.
 
 Example format:
-[{"id": "q1", "text": "What is the average price by category?"}, {"id": "q2", "text": "How many items sold per month?"}]
-
-Do not wrap the array in any additional object or key like "elements". Return the array directly.`;
+{"questions":[{"id": "q1", "text": "What is the average price by category?"}, {"id": "q2", "text": "How many items sold per month?"}, {"id": "q3", "text": "Which category has the highest revenue?"}]}`;

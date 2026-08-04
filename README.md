@@ -14,6 +14,7 @@
 - **Frontend**: Next.js, Typescript, Tailwind CSS, Shadcn UI
 - **Together AI LLM**: Generates Python code to answer questions and visualize data
 - [**Together Code Interpreter**: Executes Python code and returns results](https://www.together.ai/code-interpreter)
+- **Braintrust**: Privacy-safe LLM tracing and observability
 
 ## How it works
 
@@ -29,6 +30,7 @@
 2. Create accounts at [Together.ai](https://together.ai/) and [Upstash](https://upstash.com/) for LLM and Redis
 3. Create a `.env` file and add your API keys:
    - `TOGETHER_API_KEY`
+   - `BRAINTRUST_API_KEY` (optional)
    - `UPSTASH_REDIS_REST_URL`
    - `UPSTASH_REDIS_REST_TOKEN`
 4. Run `pnpm install` and `pnpm run dev` to install dependencies and start the app locally
