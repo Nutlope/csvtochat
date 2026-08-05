@@ -9,6 +9,7 @@ import { GithubBanner } from "./GithubBanner";
 import useLocalStorage from "@/hooks/useLocalStorage";
 import { cn } from "@/lib/utils";
 import TooltipUsage from "./TooltipUsage";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 interface HeaderProps {
   chatId?: string;
@@ -57,6 +58,8 @@ export function Header({ chatId }: HeaderProps) {
           </Link>
 
           <ChatHistoryMenu chatId={chatId} />
+
+          <ThemeToggle />
 
           <Link href="/">
             <Button
