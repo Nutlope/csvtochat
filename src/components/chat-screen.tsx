@@ -337,6 +337,10 @@ export function ChatScreen({
                 result.data["image/png"]
             );
 
+            const modelTitle = CHAT_MODELS.find(
+              (model) => model.model === currentMessage.model
+            )?.title;
+
             const isThisLastMessage = messages.length - 1 === messageIdx;
 
             const isUserMessage = currentMessage.role === "user";
@@ -422,17 +426,9 @@ export function ChatScreen({
                               </>
                             )}
                             {formatLLMTimestamp(currentMessage.createdAt)}{" "}
-                            {currentMessage?.model && (
+                            {modelTitle && (
                               <>
-                                <span className="mr-0.5">
-                                  -{" "}
-                                  {
-                                    CHAT_MODELS.find(
-                                      (model) =>
-                                        model.model === currentMessage.model
-                                    )?.title
-                                  }
-                                </span>
+                                <span className="mr-0.5">- {modelTitle}</span>
                               </>
                             )}
                           </span>
