@@ -1,10 +1,9 @@
 import { getRemainingMessages } from "@/lib/limits";
+import { getClientIp } from "@/lib/client-ip";
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-
   // Use IP address as a simple user fingerprint
-  const ip = request.headers.get("x-forwarded-for") || "unknown";
+  const ip = getClientIp(request.headers);
 
   try {
     const result = await getRemainingMessages(ip);
@@ -13,7 +12,8 @@ export async function GET(request: Request) {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
+    console.error("Failed to load message limits:", error);
+    return new Response(JSON.stringify({ error: "Internal server error." }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });

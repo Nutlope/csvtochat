@@ -6,8 +6,8 @@ import { UploadArea } from "@/components/upload-area";
 import { HeroSection } from "@/components/hero-section";
 import { QuestionSuggestionCard } from "@/components/question-suggestion-card";
 import { extractCsvData } from "@/lib/csvUtils";
-import { createChat } from "@/lib/chat-store";
-import { useS3Upload } from "next-s3-upload";
+import { createChat } from "@/app/actions";
+import { usePresignedUpload } from "next-s3-upload";
 import { PromptInput } from "@/components/PromptInput";
 import { toast } from "sonner";
 import { useLLMModel } from "@/hooks/useLLMModel";
@@ -24,7 +24,7 @@ function CSVToChatClient({
 }: {
   setIsLoading: (load: boolean) => void;
 }) {
-  const { uploadToS3 } = useS3Upload();
+  const { uploadToS3 } = usePresignedUpload();
   const { selectedModelSlug } = useLLMModel();
   const [localFile, setLocalFile] = useState<File | null>(null);
   const [suggestedQuestions, setSuggestedQuestions] = useState<
@@ -64,13 +64,13 @@ function CSVToChatClient({
           body: JSON.stringify({ columns: headers }),
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
         const uploadedFile = await uploadPromise;
 
         setUploadedFileUrl(uploadedFile.url);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
         const data = await response.json();
         setSuggestedQuestions(data.questions);
@@ -109,13 +109,19 @@ function CSVToChatClient({
 
     setIsLoading(true);
 
-    const id = await createChat({
+    const result = await createChat({
       userQuestion: text, // it's not stored in db here just used for chat title!
       csvHeaders: csvHeaders,
       csvFileUrl: uploadedFileUrl,
       csvRows: csvRows,
     });
-    redirect(`/chat/${id}?model=${selectedModelSlug}`);
+    if ("error" in result) {
+      localStorage.removeItem("pendingMessage");
+      setIsLoading(false);
+      toast.error(result.error);
+      return;
+    }
+    redirect(`/chat/${result.id}?model=${selectedModelSlug}`);
   };
 
   return (
