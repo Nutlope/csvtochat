@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { togetherClient } from "@/lib/clients";
 import { generateQuestionsPrompt } from "@/lib/prompts";
+import { getClientIp } from "@/lib/client-ip";
+import { csvHeadersSchema } from "@/lib/input-limits";
+import { enforceRateLimit } from "@/lib/rate-limit";
 import {
   endAndFlushBraintrustSpanAfterResponse,
   logBraintrustEvent,
@@ -47,14 +50,23 @@ export async function POST(req: Request) {
   let startedAt: number | undefined;
 
   try {
-    const { columns } = await req.json();
+    const parsed = csvHeadersSchema.safeParse(
+      (await req.json().catch(() => null))?.columns,
+    );
 
-    if (!columns || !Array.isArray(columns) || columns.length === 0) {
+    if (!parsed.success) {
       return NextResponse.json(
         { error: 'Invalid input: "columns" array is required.' },
         { status: 400 },
       );
     }
+    const columns = parsed.data;
+
+    const limited = await enforceRateLimit(
+      "generateQuestions",
+      getClientIp(req.headers),
+    );
+    if (limited) return limited;
 
     startedAt = performance.now();
     span = startBraintrustSpan({
