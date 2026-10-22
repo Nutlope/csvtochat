@@ -9,6 +9,8 @@ import { chatIdSchema, MAX_CODE_CHARS } from "@/lib/input-limits";
 import { claimOnce, enforceRateLimit } from "@/lib/rate-limit";
 import { extractCodeFromText } from "@/lib/utils";
 
+export const maxDuration = 90;
+
 const codingRequestSchema = z.object({
   id: chatIdSchema,
   messageId: z.string().min(1).max(128),
@@ -92,7 +94,10 @@ export async function POST(req: NextRequest) {
 
     let result;
     try {
-      result = await Promise.race([runPython(code), timeoutPromise]);
+      result = await Promise.race([
+        runPython(code, { csvFileUrl: chat.csvFileUrl }),
+        timeoutPromise,
+      ]);
     } catch (err: any) {
       if (err.message && err.message.includes("timed out")) {
         return NextResponse.json(
@@ -118,7 +123,10 @@ export async function POST(req: NextRequest) {
     const toolCallMessage: DbMessage = {
       id: randomUUID(),
       role: "assistant",
-      content: "Code execution complete.",
+      content:
+        result.status === "error"
+          ? "Code execution failed."
+          : "Code execution complete.",
       createdAt: new Date(),
       duration,
       toolCall: {
