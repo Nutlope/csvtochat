@@ -206,7 +206,6 @@ export async function POST(req: Request) {
     const stream = streamText({
       model: modelInstance,
       system: generateCodePrompt({
-        csvFileUrl: chat?.csvFileUrl || "",
         csvHeaders: chat?.csvHeaders || [],
         csvRows: chat?.csvRows || [],
       }),

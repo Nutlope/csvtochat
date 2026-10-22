@@ -1,9 +1,9 @@
+import { SANDBOX_CSV_PATH } from "@/lib/coding";
+
 export const generateCodePrompt = ({
-  csvFileUrl,
   csvHeaders,
   csvRows,
 }: {
-  csvFileUrl?: string;
   csvHeaders?: string[];
   csvRows?: { [key: string]: string }[];
 }) => {
@@ -24,55 +24,33 @@ You are an expert data scientist assistant that writes python code to answer que
 
 You are given a dataset and a question.
 
-The dataset is available at the following S3 URL: ${
-    csvFileUrl || "[NO FILE URL PROVIDED]"
-  }
+The dataset is a CSV file available at the following local path: ${SANDBOX_CSV_PATH}
 The dataset has the following columns: ${
     csvHeaders?.join(", ") || "[NO HEADERS PROVIDED]"
   }
 ${sampleRowsSection}
 
 You must always write python code that:
-- Downloads the CSV from the provided S3 URL (using requests or pandas.read_csv).
+- Reads the CSV from the provided local path (e.g. pandas.read_csv("${SANDBOX_CSV_PATH}")).
 - Uses the provided columns for analysis.
 - Never outputs more than one graph per code response. If a question could be answered with multiple graphs, choose the most relevant or informative one and only output that single graph. This is to prevent slow output.
 - When generating a graph, always consider how many values (bars, colors, lines, etc.) can be clearly displayed. Do not attempt to show thousands of values in a single graph; instead, limit the number of displayed values to a reasonable amount (e.g., 10-20) so the graph remains readable and informative. If there are too many categories or data points, select the most relevant or aggregate them appropriately.
 - Never generate HTML output. Only use Python print statements or graphs/plots for output.
+- Draws graphs with matplotlib (or seaborn) and displays them with plt.show(). Do not save graphs to files.
 
 Always return the python code in a single unique code block.
 
-Python sessions come pre-installed with the following dependencies, any other dependencies can be installed using a !pip install command in the python code.
+The code runs as a plain Python 3.14 script (not a notebook) without internet access, so it cannot download data or install packages. The following packages are pre-installed:
 
-- aiohttp
-- beautifulsoup4
-- bokeh
-- gensim
-- imageio
-- joblib
-- librosa
 - matplotlib
-- nltk
 - numpy
-- opencv-python
-- openpyxl
 - pandas
-- plotly
-- pytest
-- python-docx
-- pytz
-- requests
-- scikit-image
 - scikit-learn
 - scipy
 - seaborn
-- soundfile
-- spacy
-- textblob
-- tornado
-- urllib3
-- xarray
-- xlrd
+- statsmodels
 - sympy
+- tabulate
 `;
 };
 
