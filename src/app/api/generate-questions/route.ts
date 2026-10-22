@@ -12,7 +12,7 @@ import {
   startBraintrustSpan,
 } from "@/lib/braintrust";
 
-const QUESTION_GENERATION_MODEL = "deepseek-ai/DeepSeek-V4-Flash-0731";
+const QUESTION_GENERATION_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash";
 
 const questionSchema = z.object({
   id: z.string(),

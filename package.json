@@ -19,6 +19,7 @@
     "@radix-ui/react-visually-hidden": "^1.2.3",
     "@upstash/ratelimit": "^2.0.5",
     "@upstash/redis": "^1.35.0",
+    "@vercel/sandbox": "^3.8.0",
     "ai": "^4.3.16",
     "braintrust": "3.39.0",
     "class-variance-authority": "^0.7.1",

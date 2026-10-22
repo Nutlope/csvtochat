@@ -21,7 +21,7 @@ import {
 import { limitMessages } from "@/lib/limits";
 import { checkRateLimit, claimOnce, rateLimitErrorMessage } from "@/lib/rate-limit";
 import { generateCodePrompt } from "@/lib/prompts";
-import { CHAT_MODELS } from "@/lib/models";
+import { resolveChatModel } from "@/lib/models";
 import {
   endAndFlushBraintrustSpanAfterResponse,
   logBraintrustEvent,
@@ -71,7 +71,12 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return new Response("Invalid request.", { status: 400 });
   }
-  const { id, model } = parsed.data;
+  const { id } = parsed.data;
+  const chatModel = resolveChatModel(parsed.data.model);
+  if (!chatModel) {
+    return new Response("Invalid model.", { status: 400 });
+  }
+  const selectedModel = chatModel.model;
 
   const ip = getClientIp(req.headers);
   const burstLimit = await checkRateLimit("chat", ip);
@@ -157,21 +162,6 @@ export async function POST(req: Request) {
   // Start timing
   const start = Date.now();
 
-  // Determine which model to use
-
-  const defaultModel = CHAT_MODELS.find((m) => m.isDefault)?.model;
-
-  const selectedModelSlug = typeof model === "string" ? model : undefined;
-
-  const selectedModel =
-    (selectedModelSlug &&
-      CHAT_MODELS.find((m) => m.slug === selectedModelSlug)?.model) ||
-    defaultModel;
-
-  if (!selectedModel) {
-    throw new Error("Invalid model selected.");
-  }
-
   const span = startBraintrustSpan({
     name: "csvtochat.chat",
     type: "llm",
@@ -216,13 +206,15 @@ export async function POST(req: Request) {
     const stream = streamText({
       model: modelInstance,
       system: generateCodePrompt({
-        csvFileUrl: chat?.csvFileUrl || "",
         csvHeaders: chat?.csvHeaders || [],
         csvRows: chat?.csvRows || [],
       }),
       messages: coreMessagesForStream.filter(
         (msg) => msg.role !== "system"
       ) as CoreMessage[],
+      providerOptions: chatModel.togetherOptions
+        ? { togetherai: chatModel.togetherOptions }
+        : undefined,
       onError: ({ error }) => {
         finishTrace({
           error: serializeBraintrustError(error),

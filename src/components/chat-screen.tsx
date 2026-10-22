@@ -5,7 +5,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { Header } from "@/components/header";
 import { ChatInput } from "@/components/ChatInput";
 import { MemoizedMarkdown } from "./MemoizedMarkdown";
-import { TogetherCodeInterpreterResponseData } from "@/lib/coding";
+import type { CodeInterpreterResponseData } from "@/lib/coding";
 import { type UIMessage } from "ai";
 import { ImageFigure } from "./chatTools/ImageFigure";
 import { TerminalOutput } from "./chatTools/TerminalOutput";
@@ -318,7 +318,7 @@ export function ChatScreen({
             const codeResults =
               currentMessage.toolCall?.toolInvocation.toolName === "runCode"
                 ? (currentMessage.toolCall?.toolInvocation
-                    .result as TogetherCodeInterpreterResponseData)
+                    .result as CodeInterpreterResponseData)
                 : undefined;
 
             const stdOut = codeResults?.outputs?.find(
@@ -336,6 +336,10 @@ export function ChatScreen({
                 result.data &&
                 result.data["image/png"]
             );
+
+            const modelTitle = CHAT_MODELS.find(
+              (model) => model.model === currentMessage.model
+            )?.title;
 
             const isThisLastMessage = messages.length - 1 === messageIdx;
 
@@ -395,10 +399,12 @@ export function ChatScreen({
                       "result" && (
                       <div className="text-slate-800 text-sm leading-relaxed">
                         {errorCode ? (
-                          <ErrorOutput data={errorCode.data} />
+                          <ErrorOutput data={String(errorCode.data)} />
                         ) : (
                           <>
-                            {stdOut && <TerminalOutput data={stdOut.data} />}
+                            {stdOut && (
+                              <TerminalOutput data={String(stdOut.data)} />
+                            )}
 
                             {imagePngBase64 && (
                               <ImageFigure
@@ -422,17 +428,9 @@ export function ChatScreen({
                               </>
                             )}
                             {formatLLMTimestamp(currentMessage.createdAt)}{" "}
-                            {currentMessage?.model && (
+                            {modelTitle && (
                               <>
-                                <span className="mr-0.5">
-                                  -{" "}
-                                  {
-                                    CHAT_MODELS.find(
-                                      (model) =>
-                                        model.model === currentMessage.model
-                                    )?.title
-                                  }
-                                </span>
+                                <span className="mr-0.5">- {modelTitle}</span>
                               </>
                             )}
                           </span>

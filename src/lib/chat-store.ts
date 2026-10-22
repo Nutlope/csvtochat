@@ -9,7 +9,7 @@ import {
   startBraintrustSpan,
 } from "./braintrust";
 const CHAT_KEY_PREFIX = "chat:";
-const TITLE_MODEL = "meta-llama/Llama-3.3-70B-Instruct-Turbo";
+const TITLE_MODEL = "deepseek-ai/DeepSeek-V4.1-Flash";
 
 // Extend the Message type to include duration for Redis persistence
 export type DbMessage = AIMsg & {
@@ -74,6 +74,7 @@ export async function createChat({
       model: togetherAISDKClient(TITLE_MODEL),
       prompt: generateTitlePrompt({ csvHeaders, userQuestion }),
       maxTokens: 100,
+      providerOptions: { togetherai: { reasoning: { enabled: false } } },
     });
     title = result.text;
 

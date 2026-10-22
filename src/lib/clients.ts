@@ -10,8 +10,6 @@ export const togetherAISDKClient = createTogetherAI({
   apiKey: process.env.TOGETHER_API_KEY,
 });
 
-export const codeInterpreter = togetherClient.codeInterpreter;
-
 export const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
   token: process.env.UPSTASH_REDIS_REST_TOKEN,
