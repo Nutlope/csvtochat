@@ -1,7 +1,16 @@
 import { loadChat } from "@/lib/chat-store";
+import { canAccessChat, getOwnerHash } from "@/lib/chat-owner";
+import { isAllowedCsvFileUrl } from "@/lib/input-limits";
 import { ChatScreen } from "@/components/chat-screen";
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { APP_NAME } from "@/lib/utils";
+
+async function loadAccessibleChat(id: string) {
+  const chat = await loadChat(id);
+  if (!chat || !canAccessChat(chat, await getOwnerHash())) return null;
+  return chat;
+}
 
 export async function generateMetadata({
   params,
@@ -9,7 +18,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const chat = await loadChat(id);
+  const chat = await loadAccessibleChat(id);
   if (!chat) {
     return {
       title: `Chat not found | ${APP_NAME}`,
@@ -38,16 +47,20 @@ export default async function Page({
 }) {
   const { id } = await params;
 
-  const chat = await loadChat(id);
+  const chat = await loadAccessibleChat(id);
+  if (!chat) notFound();
 
   return (
     <ChatScreen
       id={id}
-      initialMessages={chat?.messages}
+      initialMessages={chat.messages}
       uploadedFile={{
-        url: chat?.csvFileUrl || "",
-        csvHeaders: chat?.csvHeaders || [],
-        csvRows: chat?.csvRows || [],
+        url:
+          chat.csvFileUrl && isAllowedCsvFileUrl(chat.csvFileUrl)
+            ? chat.csvFileUrl
+            : "",
+        csvHeaders: chat.csvHeaders || [],
+        csvRows: chat.csvRows || [],
       }}
     />
   );

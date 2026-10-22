@@ -1,6 +1,5 @@
-"use server";
+import { randomUUID } from "crypto";
 import { Message as AIMsg, generateText } from "ai";
-import { generateId } from "ai";
 import { redis, togetherAISDKClient } from "./clients"; // Import your redis client
 import { generateTitlePrompt } from "./prompts";
 import {
@@ -17,6 +16,15 @@ export type DbMessage = AIMsg & {
   duration?: number;
   model?: string; // which model was used to generate this message
   isAutoErrorResolution?: boolean; // if true then this message is an automatic error resolution prompt
+  toolCall?: {
+    toolInvocation: {
+      toolName: string;
+      state: string;
+      result?: {
+        outputs?: { type: string; data: unknown }[];
+      };
+    };
+  };
 };
 
 type ChatData = {
@@ -26,6 +34,7 @@ type ChatData = {
   csvRows: { [key: string]: string }[] | null;
   title: string | null; // inferring the title of the chat based on csvHeaders and first user messages
   createdAt?: Date;
+  ownerHash?: string;
   // ...future fields
 };
 
@@ -34,13 +43,15 @@ export async function createChat({
   csvHeaders,
   csvRows,
   csvFileUrl,
+  ownerHash,
 }: {
   userQuestion: string;
   csvHeaders: string[];
   csvRows: { [key: string]: string }[];
   csvFileUrl: string;
+  ownerHash: string;
 }): Promise<string> {
-  const id = generateId();
+  const id = randomUUID();
 
   // use userQuestion to generate a title for the chat
   const startedAt = performance.now();
@@ -94,6 +105,7 @@ export async function createChat({
     csvFileUrl,
     title,
     createdAt: new Date(),
+    ownerHash,
   };
   await redis.set(`${CHAT_KEY_PREFIX}${id}`, JSON.stringify(initial));
   return id;
@@ -117,24 +129,13 @@ export async function saveNewMessage({
   message: DbMessage;
 }): Promise<void> {
   const chat = await loadChat(id);
-  if (chat) {
-    const updatedMessages = [...(chat.messages || []), message];
-    await redis.set(
-      `${CHAT_KEY_PREFIX}${id}`,
-      JSON.stringify({
-        ...chat,
-        messages: updatedMessages,
-      })
-    );
-  } else {
-    // If chat does not exist, create a new one with this message
-    const newChat: ChatData = {
-      messages: [message],
-      csvHeaders: null,
-      csvRows: null,
-      csvFileUrl: null,
-      title: null,
-    };
-    await redis.set(`${CHAT_KEY_PREFIX}${id}`, JSON.stringify(newChat));
-  }
+  if (!chat) return;
+  const updatedMessages = [...(chat.messages || []), message];
+  await redis.set(
+    `${CHAT_KEY_PREFIX}${id}`,
+    JSON.stringify({
+      ...chat,
+      messages: updatedMessages,
+    })
+  );
 }

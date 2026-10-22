@@ -12,7 +12,7 @@ import { TerminalOutput } from "./chatTools/TerminalOutput";
 import { ErrorOutput } from "./chatTools/ErrorOutput";
 import { useAutoScroll } from "../hooks/useAutoScroll";
 import { useDraftedInput } from "../hooks/useDraftedInput";
-import { DbMessage } from "@/lib/chat-store";
+import type { DbMessage } from "@/lib/chat-store";
 import {
   cn,
   extractCodeFromText,
@@ -25,6 +25,7 @@ import ReasoningAccordion from "./ReasoningAccordion";
 import { useLLMModel } from "@/hooks/useLLMModel";
 import { CodeRunning } from "./chatTools/CodeRunning";
 import { CHAT_MODELS } from "@/lib/models";
+import { MAX_ERROR_CHARS } from "@/lib/input-limits";
 import { useRouter } from "next/navigation";
 
 export type Message = UIMessage & {
@@ -104,11 +105,14 @@ export function ChatScreen({
             headers: {
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({ code, id }),
+            body: JSON.stringify({ id, messageId: message.id }),
             signal: codeAbortController.current.signal,
           });
 
           result = await response.json();
+          if (!response.ok) {
+            throw new Error(result?.error || "Code execution failed.");
+          }
         } catch (error: any) {
           if (error.name === "AbortError") {
             // Fetch was aborted, handle accordingly
@@ -173,7 +177,10 @@ export function ChatScreen({
           : undefined;
         const errorOccurred = Boolean(errorOutput);
         const errorMessage = errorOutput
-          ? errorOutput.data || "Unknown error"
+          ? String(errorOutput.data || "Unknown error").slice(
+              0,
+              MAX_ERROR_CHARS
+            )
           : "";
 
         if (errorOccurred) {

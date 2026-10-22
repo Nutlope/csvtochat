@@ -29,33 +29,15 @@ interface RunPythonResult {
 /**
  * Executes Python code using Together Code Interpreter and returns the result.
  * @param code The Python code to execute
- * @param session_id Optional session ID to maintain state between executions
- * @param files Optional list of files to upload to the code interpreter
- *              Each file should be an object with 'name', 'encoding', and 'content' keys
  * @returns The output of the executed code as a JSON
  */
-export async function runPython(
-  code: string,
-  session_id?: string,
-  files?: Array<{ name: string; encoding: string; content: string }>
-): Promise<RunPythonResult> {
+export async function runPython(code: string): Promise<RunPythonResult> {
   try {
     const kwargs: CodeInterpreterExecuteParams = { code, language: "python" };
-
-    if (session_id) {
-      kwargs.session_id = session_id;
-    }
-
-    if (files) {
-      // kwargs.files = files;
-    }
 
     const response = await codeInterpreter.execute(kwargs);
 
     const data = response.data as TogetherCodeInterpreterResponseData;
-
-    console.log("Response data:");
-    console.dir(data);
 
     const result: RunPythonResult = {
       session_id: data.session_id || null,
@@ -74,10 +56,11 @@ export async function runPython(
     }
 
     return result;
-  } catch (e: any) {
+  } catch (e) {
+    console.error("Code Interpreter request failed:", e);
     const error_result: RunPythonResult = {
       status: "error",
-      error_message: e.message || String(e),
+      error_message: "Code execution failed.",
       session_id: null,
       outputs: [],
     };
